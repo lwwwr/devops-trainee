@@ -1,0 +1,18 @@
+#TBD
+Vagrant.configure("2") do |config|
+  config.vm.define "cloud" do |cloud|
+    cloud.vm.box = "lwwwr/centos7"
+    cloud.vm.box_version = "0.0.1"
+    cloud.vm.hostname = "cloud"
+    cloud.vm.network "private_network", ip: '192.168.1.10'
+    ENV['LC_ALL']="en_US.UTF-8"
+    cloud.vm.provision :hosts, sync_hosts: true
+  end
+  config.vm.define "localbox" do |localbox|
+    localbox.vm.box = "trainee"
+    localbox.vm.hostname = "localbox"
+    localbox.vm.network "private_network", ip: '192.168.1.11'
+    ENV['LC_ALL']="en_US.UTF-8"
+    localbox.vm.provision :hosts, sync_hosts: true
+  end
+end

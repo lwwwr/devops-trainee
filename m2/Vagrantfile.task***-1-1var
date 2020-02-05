@@ -1,0 +1,30 @@
+#not work correctly with destroy
+
+script = <<-SCRIPT
+    sudo yum install nano  git -y
+    SCRIPT
+
+template = {
+    hostname: "centos-host",
+    box: "doesitblend/centos7"  #"debian/jessie64"
+  }
+
+print 'How much hosts would you want to create? '
+number = STDIN.gets.chomp
+raise ArgumentError, 'No number!' if number.to_i == 0
+raise ArgumentError, 'Wrong number format' unless number.scan(/[^0-9]/).empty?
+number = number.to_i
+
+
+Vagrant.configure("2") do |config|
+  (1..number).each do |i|
+    config.vm.define "some-#{template[:hostname]}-#{i}" do |node|
+      node.vm.box = template[:box]
+      node.vm.hostname = "ololo-some-#{template[:hostname]}-#{i}"
+      node.vm.network "private_network", ip: "192.168.50.#{i}"
+      ENV['LC_ALL']="en_US.UTF-8"
+      node.vm.provision :hosts, sync_hosts: true
+      node.vm.provision :shell, inline: script
+    end
+  end
+end

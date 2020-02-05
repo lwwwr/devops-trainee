@@ -1,0 +1,43 @@
+#vagrant plugin install vagrant-hosts
+
+# The code below is about Task 2. Partly accepted for Task 1
+
+
+servers=[
+  {
+    hostname: "debian-host-1",
+    install_command: "apt-get",
+    ip: "192.168.100.1",
+    box: "omu/debian-stable-server"  #"debian/jessie64"
+  },
+  {
+    hostname: "centos-host-2",
+    install_command: "yum",
+    ip: "192.168.100.2",
+    box: "doesitblend/centos7" #"centos/7"
+  }
+]
+
+def install_git(command)
+    <<-SCRIPT
+    sudo #{command} install git -y
+    git --version
+    git clone https://github.com/lwwwr/devops-trainee.git
+    cd devops-trainee
+    git checkout module2
+    cat m2/module2.txt
+    SCRIPT
+end
+
+Vagrant.configure("2") do |config|
+  servers.each do |instance|
+    config.vm.define instance[:hostname] do |node|
+      node.vm.box = instance[:box]
+      node.vm.hostname = "alavr-#{instance[:hostname]}"
+      node.vm.network "private_network", ip: instance[:ip]
+      ENV['LC_ALL']="en_US.UTF-8"
+      node.vm.provision :hosts, sync_hosts: true
+      node.vm.provision :shell, inline: install_git(instance[:install_command])
+    end
+  end
+end
