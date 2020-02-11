@@ -1,37 +1,80 @@
 #Vagrantfile.additional_home_task
 #run in next format: 'HOSTS_NUMBER=2 vagrant up'
 
-# script = <<-SCRIPT
-#     sudo yum install nano  git -y
-#     SCRIPT
-
-install_apache = <<-SCRIPT
-  sudo yum install httpd -y
-  sudo systemctl start httpd
-  sudo systemctl enable httpd
-  sudo systemctl status httpd
-SCRIPT
-
-install_tomcat = <<-SCRIPT
-
-SCRIPT
-
-# <VirtualHost *:80>
-#     ServerName www.domain1.com
-#     Redirect / http://www.domain2.com
-# </VirtualHost>
-
-
+@number = ENV['HOSTS_NUMBER'].to_i ||= 1
 
 @template = {
     hostname: "centos-host",
     box: "doesitblend/centos7"  #"debian/jessie64"
   }
 
-number = ENV['HOSTS_NUMBER'].to_i ||= 1
+@install_apache = <<-SCRIPT
+  sudo yum install httpd -y
+  sudo systemctl start httpd
+  sudo systemctl enable httpd
+  sudo systemctl status httpd
+SCRIPT
 
-def configure_instance(config, host, i, script)
-  yield
+@install_tomcat = <<-SCRIPT
+  sudo yum install tomcat
+  sudo yum install tomcat-webapps tomcat-admin-webapps tomcat-docs-webapp tomcat-javadoc
+  sudo systemctl start tomcat
+  sudo systemctl enable tomcat
+SCRIPT
+
+def generate_conf
+  apache_conf = <<~STRING
+
+  LoadModule proxy_balancer_module modules/mod_proxy_balancer.so
+  LoadModule proxy_module          modules/mod_proxy.so
+  LoadModule proxy_http_module     modules/mod_proxy_http.so
+
+  <Proxy balancer://my-balancer>
+  #{balance_member.chomp}
+  ProxySet lbmethod=byrequests
+  </Proxy>
+
+  ProxyPass / balancer://my-balancer/
+  #{proxy_pass_reserve}
+  STRING
+
+  File.open('conf_content', 'w') do |file|
+    file.write(apache_conf)
+    file.close
+  end
+end
+
+def generate_html(instance_number)
+    file = File.open('tomcat_page.html')
+    content = file.read
+    file.close
+    template_ip = "172.30.0.#{instance_number}"
+    template_dns = "tomcat-centos-host-#{instance_number}"
+    content.gsub!("TEMPLATE_DNS", template_dns)
+    content.gsub!("TEMPLATE_IP", template_ip)
+    File.open("index#{instance_number}.html", 'w') do |file|
+      file.write(content)
+      file.close
+    end
+end
+
+def balance_member
+  balance_member_string = ""
+  (2..@number).each do |i|
+     balance_member_string += "BalancerMember http://172.30.0.#{i}:8080 loadfactor=1\n"
+  end
+  balance_member_string
+end 
+
+def proxy_pass_reserve
+  proxy_pass_reserve_string = ""
+  (2..@number).each do |i|
+    proxy_pass_reserve_string += "ProxyPassReverse / http://172.30.0.#{i}:8080/\n"
+  end
+  proxy_pass_reserve_string
+end
+
+def configure_instance(host, i, script)
   config.vm.define "#{host}-#{i}" do |node|
     node.vm.box = @template[:box]
     node.vm.hostname = "#{host}-#{@template[:hostname]}-#{i}"
@@ -39,23 +82,40 @@ def configure_instance(config, host, i, script)
     ENV['LC_ALL']="en_US.UTF-8"
     node.vm.provision :hosts, sync_hosts: true
     node.vm.provision :shell, inline: script
+    yield
   end
-
+  config.vm.network "forwarded_port", guest: 80, host: 8080 if host == 'apache'
 end
 
-Vagrant.configure("2") do |config|
-  (1..1).each do |i|
-    
-    if i == 1
-      host = 'apache'
-      configure_instance(config, host, i, install_apache) do |run_block|
-        config.vm.network "forwarded_port", guest: 80, host: 8080
+def main()
+  Vagrant.configure("2") do |config|
+    (1..@number).each do |i|
+      apache = false
+      if i == 1
+        host = 'apache'
+        script = @install_apache
+        apache = true
+      else
+        host = 'tomcat'
+        script = @install_tomcat 
       end
-    else
-
-      ###
+      configure_instance(host, i, script) do |run_block|
+        if apache  
+          generate_conf
+          node.vm.provision "file", source: "conf_content", destination: "conf_content"
+          node.vm.provision "shell" do |s|
+            s.inline = "sudo cat conf_content >> /etc/httpd/conf/httpd.conf && sudo systemctl restart httpd"
+          end
+        else
+          node.vm.provision "file", source: "index#{i}.html", destination: "index.html"
+          node.vm.provision "shell" do |s|
+            s.inline = "sudo mv index.html $TOMCAT_HOME/webapps/ROOT/"
+          end
+        end
+      end
     end
-
-
   end
 end
+
+main()
+
