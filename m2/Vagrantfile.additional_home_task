@@ -1,27 +1,61 @@
 #Vagrantfile.additional_home_task
 #run in next format: 'HOSTS_NUMBER=2 vagrant up'
 
-script = <<-SCRIPT
-    sudo yum install nano  git -y
-    SCRIPT
+# script = <<-SCRIPT
+#     sudo yum install nano  git -y
+#     SCRIPT
 
-template = {
+install_apache = <<-SCRIPT
+  sudo yum install httpd -y
+  sudo systemctl start httpd
+  sudo systemctl enable httpd
+  sudo systemctl status httpd
+SCRIPT
+
+install_tomcat = <<-SCRIPT
+
+SCRIPT
+
+# <VirtualHost *:80>
+#     ServerName www.domain1.com
+#     Redirect / http://www.domain2.com
+# </VirtualHost>
+
+
+
+@template = {
     hostname: "centos-host",
     box: "doesitblend/centos7"  #"debian/jessie64"
   }
 
-number = ENV['HOSTS_NUMBER'].to_i || 1
-#raise ArgumentError, 'Wrong number format' unless number.scan(/[^0-9]/).empty?
+number = ENV['HOSTS_NUMBER'].to_i ||= 1
+
+def configure_instance(config, host, i, script)
+  yield
+  config.vm.define "#{host}-#{i}" do |node|
+    node.vm.box = @template[:box]
+    node.vm.hostname = "#{host}-#{@template[:hostname]}-#{i}"
+    node.vm.network "private_network", ip: "172.30.0.#{i}"
+    ENV['LC_ALL']="en_US.UTF-8"
+    node.vm.provision :hosts, sync_hosts: true
+    node.vm.provision :shell, inline: script
+  end
+
+end
 
 Vagrant.configure("2") do |config|
-  (1..number).each do |i|
-    config.vm.define "some-#{template[:hostname]}-#{i}" do |node|
-      node.vm.box = template[:box]
-      node.vm.hostname = "ololo-some-#{template[:hostname]}-#{i}"
-      node.vm.network "private_network", ip: "192.168.50.#{i}"
-      ENV['LC_ALL']="en_US.UTF-8"
-      node.vm.provision :hosts, sync_hosts: true
-      #node.vm.provision :shell, inline: script
+  (1..1).each do |i|
+    
+    if i == 1
+      host = 'apache'
+      configure_instance(config, host, i, install_apache) do |run_block|
+        config.vm.network "forwarded_port", guest: 80, host: 8080
+      end
+    else
+
+      ###
     end
+
+
   end
 end
