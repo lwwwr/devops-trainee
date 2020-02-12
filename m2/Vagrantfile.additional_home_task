@@ -1,7 +1,7 @@
 #Vagrantfile.additional_home_task
 #run in next format: 'HOSTS_NUMBER=2 vagrant up'
 
-@number = ENV['HOSTS_NUMBER'].to_i ||= 1
+@number = ENV['HOSTS_NUMBER'].to_i == 0 ? 1 : ENV['HOSTS_NUMBER'].to_i
 
 @template = {
     hostname: "centos-host",
@@ -13,14 +13,16 @@
   sudo systemctl start httpd
   sudo systemctl enable httpd
   sudo systemctl status httpd
+  sudo systemctl restart httpd
 SCRIPT
 
 @install_tomcat = <<-SCRIPT
-  sudo yum install tomcat
-  sudo yum install tomcat-webapps tomcat-admin-webapps tomcat-docs-webapp tomcat-javadoc
+  sudo yum install tomcat -y
   sudo systemctl start tomcat
   sudo systemctl enable tomcat
+  sudo systemctl restart tomcat
 SCRIPT
+#sudo yum install tomcat-webapps tomcat-admin-webapps tomcat-docs-webapp tomcat-javadoc -y
 
 def generate_conf
   apache_conf = <<~STRING
@@ -28,7 +30,7 @@ def generate_conf
   LoadModule proxy_balancer_module modules/mod_proxy_balancer.so
   LoadModule proxy_module          modules/mod_proxy.so
   LoadModule proxy_http_module     modules/mod_proxy_http.so
-
+  <VirtualHost *:80>
   <Proxy balancer://my-balancer>
   #{balance_member.chomp}
   ProxySet lbmethod=byrequests
@@ -36,6 +38,7 @@ def generate_conf
 
   ProxyPass / balancer://my-balancer/
   #{proxy_pass_reserve}
+  </VirtualHost>
   STRING
 
   File.open('conf_content', 'w') do |file|
@@ -74,7 +77,7 @@ def proxy_pass_reserve
   proxy_pass_reserve_string
 end
 
-def configure_instance(host, i, script)
+def configure_instance(config, host, i, script, apache)
   config.vm.define "#{host}-#{i}" do |node|
     node.vm.box = @template[:box]
     node.vm.hostname = "#{host}-#{@template[:hostname]}-#{i}"
@@ -82,9 +85,25 @@ def configure_instance(host, i, script)
     ENV['LC_ALL']="en_US.UTF-8"
     node.vm.provision :hosts, sync_hosts: true
     node.vm.provision :shell, inline: script
-    yield
+    if apache  
+      node.vm.network "forwarded_port", guest: 80, host: 8080 if apache
+      generate_conf
+      node.vm.provision "file", source: "conf_content", destination: "conf_content"
+      node.vm.provision "shell" do |s|
+        s.inline = "sudo cat conf_content >> /etc/httpd/conf.d/lb.conf && sudo systemctl restart httpd"
+      end
+      node.vm.provision "shell" do |s|
+        s.inline = "sudo /usr/sbin/setsebool -P httpd_can_network_connect 1"
+      end
+      #
+    else
+      generate_html(i)
+      node.vm.provision "file", source: "index#{i}.html", destination: "index.html"
+      node.vm.provision "shell" do |s|
+        s.inline = "sudo mkdir /usr/share/tomcat/webapps/ROOT/ && sudo mv index.html /usr/share/tomcat/webapps/ROOT/index.html && sudo systemctl restart tomcat"
+      end
+    end
   end
-  config.vm.network "forwarded_port", guest: 80, host: 8080 if host == 'apache'
 end
 
 def main()
@@ -99,23 +118,22 @@ def main()
         host = 'tomcat'
         script = @install_tomcat 
       end
-      configure_instance(host, i, script) do |run_block|
-        if apache  
-          generate_conf
-          node.vm.provision "file", source: "conf_content", destination: "conf_content"
-          node.vm.provision "shell" do |s|
-            s.inline = "sudo cat conf_content >> /etc/httpd/conf/httpd.conf && sudo systemctl restart httpd"
-          end
-        else
-          node.vm.provision "file", source: "index#{i}.html", destination: "index.html"
-          node.vm.provision "shell" do |s|
-            s.inline = "sudo mv index.html $TOMCAT_HOME/webapps/ROOT/"
-          end
-        end
-      end
+      puts "apache value is #{apache}"
+      configure_instance(config, host, i, script, apache) 
     end
   end
 end
 
 main()
+
+# Vagrant.configure("2") do |config|
+#   config.vm.define "cloud" do |cloud|
+#     cloud.vm.box = "lwwwr/centos7"
+#     cloud.vm.box_version = "0.0.1"
+#     cloud.vm.hostname = "cloud"
+#     cloud.vm.network "private_network", ip: '192.168.1.10'
+#     ENV['LC_ALL']="en_US.UTF-8"
+#     cloud.vm.provision :hosts, sync_hosts: true
+#   end
+# end
 
