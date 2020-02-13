@@ -81,7 +81,7 @@ def configure_instance(config, host, i, script, apache)
   config.vm.define "#{host}-#{i}" do |node|
     node.vm.box = @template[:box]
     node.vm.hostname = "#{host}-#{@template[:hostname]}-#{i}"
-    node.vm.network "private_network", ip: "172.30.0.#{i}"
+    node.vm.network "private_network", ip: "172.30.0.#{i}", virtualbox__intnet: true
     ENV['LC_ALL']="en_US.UTF-8"
     node.vm.provision :hosts, sync_hosts: true
     node.vm.provision :shell, inline: script
@@ -100,7 +100,7 @@ def configure_instance(config, host, i, script, apache)
       generate_html(i)
       node.vm.provision "file", source: "index#{i}.html", destination: "index.html"
       node.vm.provision "shell" do |s|
-        s.inline = "sudo mkdir /usr/share/tomcat/webapps/ROOT/ && sudo mv index.html /usr/share/tomcat/webapps/ROOT/index.html && sudo systemctl restart tomcat"
+        s.inline = "sudo mkdir /usr/share/tomcat/webapps/ROOT/ && sudo bash -c 'cat index.html >> /usr/share/tomcat/webapps/ROOT/index.html'"
       end
     end
   end
