@@ -1,0 +1,17 @@
+[Unit]
+Description=Puma SystemD Server
+After=network.target
+
+[Service]
+Type=simple
+User=vagrant
+WorkingDirectory=/home/vagrant/
+ExecStart=/home/vagrant/.rbenv/shims/puma -C /home/vagrant/puma.rb
+ExecStop=/home/vagrant/.rbenv/shims/pumactl -S /home/vagrant/puma.state stop
+ExecReload=/home/vagrant/.rbenv/shims/pumactl -F /home/vagrant/puma.rb phased-restart
+StandardOutput=file:/home/vagrant/puma.log
+StandardError=file:/home/vagrant/puma.err
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

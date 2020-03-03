@@ -1,0 +1,17 @@
+[Unit]
+Description=Rails HelloWorld simple app
+After=network.target
+
+[Service]
+Type=simple
+User=vagrant
+WorkingDirectory=/home/vagrant/sample-rails-hw
+ExecStart=/home/vagrant/.rbenv/shims/bundle exec puma -C /home/vagrant/sample-rails-hw/config/puma.rb
+ExecStop=/home/vagrant/.rbenv/shims/pumactl -S /home/vagrant/sample-rails-hw/tmp/pids/server.pid stop
+ExecReload=/home/vagrant/.rbenv/shims/pumactl -F /home/vagrant/sample-rails-hw/config/puma.rb phased-restart
+StandardOutput=file:/home/vagrant/sample-rails-hw/log/puma.log
+StandardError=file:/home/vagrant/sample-rails-hwlog/puma.err
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

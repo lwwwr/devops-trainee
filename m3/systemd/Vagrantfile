@@ -1,0 +1,43 @@
+#vagrant plugin install vagrant-reload
+template = {
+  hostname: 'ubuntu-host',
+  box: 'ubuntu/bionic64'
+}
+
+script = <<~SCRIPT
+sudo apt update
+sudo apt install git curl libssl-dev libreadline-dev zlib1g-dev autoconf bison build-essential libyaml-dev libreadline-dev libncurses5-dev libffi-dev libgdbm-dev gcc make -y
+git clone https://github.com/sstephenson/rbenv.git ~/.rbenv
+git clone https://github.com/rbenv/ruby-build.git ~/.rbenv/plugins/ruby-build
+echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> ~/.bashrc
+echo 'eval "$(rbenv init -)"' >> ~/.bashrc
+. ~/.bashrc
+sudo -H -u vagrant bash -i -c 'rbenv install 2.6.0'
+sudo -H -u vagrant bash -i -c 'rbenv rehash'
+sudo -H -u vagrant bash -i -c 'rbenv global 2.6.0'
+sudo -H -u vagrant bash -i -c 'gem install puma'
+sudo -H -u vagrant bash -i -c 'rbenv rehash'
+SCRIPT
+
+run_puma = <<~SCRIPT
+sudo cp puma.service /etc/systemd/system/puma.service
+sudo ln -s /etc/systemd/system/puma.service /etc/systemd/system/multi-user.target.wants/puma.service
+sudo systemctl daemon-reload
+sudo systemctl enable puma
+sudo systemctl start puma
+SCRIPT
+
+Vagrant.configure('2') do |config|
+  config.vm.define "some-#{template[:hostname]}-1" do |node|
+    node.vm.box = template[:box]
+    node.vm.hostname = "ololo-some-#{template[:hostname]}-1"
+    node.vm.network 'private_network', ip: "172.30.0.1"
+    ENV['LC_ALL'] = 'en_US.UTF-8'
+    node.vm.provision :hosts, sync_hosts: true
+    node.vm.network "forwarded_port", guest: 9292, host: 9292
+    node.vm.provision "file", source: "puma.rb", destination: "./"
+    node.vm.provision "file", source: "puma.service", destination: "./"
+    node.vm.provision "shell", privileged: false, inline: script
+    node.vm.provision "shell", privileged: false, inline: run_puma
+  end
+end

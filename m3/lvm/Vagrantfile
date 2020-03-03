@@ -1,0 +1,123 @@
+template = {
+  hostname: 'ubuntu-host',
+  box: 'ubuntu/bionic64'
+}
+
+install_docker = <<~SCRIPT
+  sudo apt-get remove docker docker-engine docker.io containerd runc
+  sudo apt-get update
+  sudo apt-get -y install \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    gnupg-agent \
+    software-properties-common
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+  sudo add-apt-repository \
+   "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+   $(lsb_release -cs) \
+   stable"
+  sudo apt-get update
+  sudo apt-get install docker-ce docker-ce-cli containerd.io -y
+  sudo apt-get install thin-provisioning-tools lvm2 -y
+SCRIPT
+
+
+create_lvm_for_docker = <<~SCRIPT
+sudo sfdisk /dev/sdc << EOF
+;
+EOF
+sudo pvcreate /dev/sdc1 && sudo vgcreate vg_docker /dev/sdc1
+SCRIPT
+
+#https://docs.docker.com/storage/storagedriver/device-mapper-driver/
+attack_lvm_to_docker = <<~SCRIPT
+sudo systemctl stop docker
+sudo lvcreate --wipesignatures y -n thinpool vg_docker -l 95%VG
+sudo lvcreate --wipesignatures y -n thinpoolmeta vg_docker -l 1%VG
+ sudo lvconvert -y \
+--zero n \
+-c 512K \
+--thinpool vg_docker/thinpool \
+--poolmetadata vg_docker/thinpoolmeta 
+echo "activation {
+  thin_pool_autoextend_threshold=80
+  thin_pool_autoextend_percent=20
+}" | sudo tee /etc/lvm/profile/vg_docker-thinpool.profile 
+sudo lvchange --metadataprofile vg_docker-thinpool vg_docker/thinpool
+sudo bash -c 'cat <<EOF > /etc/docker/daemon.json
+{
+  "storage-driver": "devicemapper",
+  "storage-opts": [
+  "dm.thinpooldev=/dev/mapper/vg_docker-thinpool",
+  "dm.use_deferred_removal=true",
+  "dm.use_deferred_deletion=true"
+  ]
+}
+EOF'
+sudo systemctl start docker
+SCRIPT
+
+create_user = <<~SCRIPT
+  groupadd m3group
+  useradd m3user
+  usermod -aG m3group m3user
+  groups m3user
+  groupdel m3group
+  groups m3user
+  sudo bash -c 'cat <<EOF > /etc/sudoers
+  m3user ALL= NOPASSWD: /bin/systemctl restart docker
+  EOF'
+SCRIPT
+
+setup_ntp = <<~SCRIPT
+  sudo apt-get update
+  sudo apt-get install ntp -y
+  sudo touch /etc/ntp.conf
+  sudo bash -c 'cat <<EOF > /etc/ntp.conf
+  server localhost
+  EOF'
+  sudo service ntp restart
+  sudo ntpq -p
+SCRIPT
+
+# какого-то черта этот шмат не работает
+# echo "{
+#   "storage-driver": "devicemapper",
+#   "storage-opts": [
+#   "dm.thinpooldev=/dev/mapper/vg_docker-thinpool",
+#   "dm.use_deferred_removal=true",
+#   "dm.use_deferred_deletion=true"
+#   ]
+# }" | sudo tee /etc/docker/daemon.json
+
+
+Vagrant.configure('2') do |config|
+  config.vm.define "some-#{template[:hostname]}-1" do |node|
+    node.vm.box = template[:box]
+    node.vm.hostname = "ololo-some-#{template[:hostname]}-1"
+    node.vm.network 'private_network', ip: "172.30.0.1"
+    ENV['LC_ALL'] = 'en_US.UTF-8'
+    node.vm.provision :hosts, sync_hosts: true
+    node.vm.provider 'virtualbox' do |vb|
+      second_disk = '../../volumes/hdd.vmdk'
+      unless File.exist?(second_disk)
+        vb.customize ['createhd', '--filename',
+                      second_disk, '--size', 5 * 1024]
+      end
+      vb.customize ['storageattach',
+                    :id,
+                    '--storagectl', 'SCSI',
+                    '--port', 2,
+                    '--device', 0,
+                    '--type', 'hdd',
+                    '--medium', second_disk]
+    end
+    node.vm.provision "install_docker", type: "shell", inline: install_docker
+    node.vm.provision "create_lvm_for_docker", type: "shell", inline: create_lvm_for_docker
+    node.vm.provision "attack_lvm_to_docker", type: "shell", inline: attack_lvm_to_docker
+    node.vm.provision "create_user", type: "shell", inline: create_user
+    node.vm.provision "setup_ntp", type: "shell", inline: setup_ntp
+  end
+end
+  

@@ -1,0 +1,48 @@
+#vagrant plugin install vagrant-reload
+template = {
+  hostname: 'ubuntu-host',
+  box: 'ubuntu/bionic64'
+}
+
+script = <<~SCRIPT
+sudo apt update
+sudo apt install git curl libssl-dev libreadline-dev zlib1g-dev autoconf bison build-essential libyaml-dev libreadline-dev libncurses5-dev libffi-dev libgdbm-dev gcc make -y
+git clone https://github.com/sstephenson/rbenv.git ~/.rbenv
+git clone https://github.com/rbenv/ruby-build.git ~/.rbenv/plugins/ruby-build
+echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> ~/.bashrc
+echo 'eval "$(rbenv init -)"' >> ~/.bashrc
+. ~/.bashrc
+sudo -H -u vagrant bash -i -c 'rbenv install 2.6.0'
+sudo -H -u vagrant bash -i -c 'rbenv rehash'
+sudo -H -u vagrant bash -i -c 'rbenv global 2.6.0'
+sudo -H -u vagrant bash -i -c 'gem install puma'
+sudo -H -u vagrant bash -i -c 'rbenv rehash'
+sudo cp /home/vagrant/puma /etc/init.d/puma
+sudo chmod 755 /etc/init.d/puma
+sudo chown vagrant:vagrant /etc/init.d/puma
+sudo update-rc.d puma defaults 95
+sudo /etc/init.d/puma start
+SCRIPT
+
+# ручками запускаем sudo systemctl status puma и видим аутпут
+# ● puma.service
+#    Loaded: loaded (/etc/init.d/puma; generated)
+#    Active: active (exited) since Thu 2020-03-12 09:27:04 UTC; 1s ago
+#      Docs: man:systemd-sysv-generator(8)
+#   Process: 21526 ExecStart=/etc/init.d/puma start (code=exited, status=0/SUCCESS)
+# через sudo systemctl start puma не работает, только sudo /etc/init.d/puma start
+
+
+Vagrant.configure('2') do |config|
+  config.vm.define "some-#{template[:hostname]}-1" do |node|
+    node.vm.box = template[:box]
+    node.vm.hostname = "ololo-some-#{template[:hostname]}-1"
+    node.vm.network 'private_network', ip: "172.30.0.1"
+    ENV['LC_ALL'] = 'en_US.UTF-8'
+    node.vm.provision :hosts, sync_hosts: true
+    node.vm.network "forwarded_port", guest: 9292, host: 9292
+    node.vm.provision "file", source: "puma.rb", destination: "./"
+    node.vm.provision "file", source: "puma", destination: "./"
+    node.vm.provision "shell", privileged: false, inline: script
+  end
+end
