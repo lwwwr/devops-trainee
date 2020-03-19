@@ -1,0 +1,69 @@
+template = {
+  hostname: 'ubuntu-host',
+  box: 'ubuntu/bionic64'
+}
+
+
+setup_ntp_server = <<~SCRIPT
+  sudo apt-get update
+  sudo apt-get install ntp -y
+  sudo touch /etc/ntp.conf
+  sudo bash -c 'cat <<EOF > /etc/ntp.conf
+  server 0.pool.ntp.org iburst
+  EOF'
+  sudo service virtualbox-guest-utils stop
+  sudo service ntp restart
+  sudo ufw allow ntp
+  sudo ufw reload
+SCRIPT
+
+setup_ntp_client = <<~SCRIPT
+  sudo apt-get update
+  sudo apt-get install ntpdate -y
+  sudo timedatectl set-ntp off
+  sudo service virtualbox-guest-utils stop
+  sudo date -s "2010-1-1 13:00"
+  date
+  sudo ntpdate -u ntpserver
+  date
+  sudo bash -c 'cat <<EOF >> /etc/crontab
+  */1 * * * * root ntpdate -u ntpserver
+  EOF'
+  sudo systemctl restart cron.service
+SCRIPT
+
+# This for ntp service, not ntpdate
+# setup_ntp_client = <<~SCRIPT
+#   sudo apt-get update
+#   sudo apt-get install ntp -y
+#   sudo timedatectl set-ntp off
+#   sudo touch /etc/ntp.conf
+#   sudo bash -c 'cat <<EOF > /etc/ntp.conf
+#   server ntpserver prefer iburst
+#   EOF'
+#   sudo service virtualbox-guest-utils stop
+#   sudo service ntp restart
+# SCRIPT
+
+
+Vagrant.configure('2') do |config|
+  config.vm.define "ntpserver" do |ntp_server|
+    ntp_server.vm.box = template[:box]
+    ntp_server.vm.hostname = "ntpserver"
+    ntp_server.vm.network 'private_network', ip: "172.30.0.1", virtualbox__intnet: true
+    ntp_server.vm.provision :hosts, sync_hosts: true
+    ENV['LC_ALL'] = 'en_US.UTF-8'
+    ntp_server.vm.provision "setup_ntp", type: "shell", inline: setup_ntp_server
+  end
+
+  config.vm.define "ntpclient" do |ntp_client|
+    ntp_client.vm.box = template[:box]
+    ntp_client.vm.hostname = "ntpclient"
+    ntp_client.vm.network 'private_network', ip: "172.30.0.2", virtualbox__intnet: true
+    ntp_client.vm.provision :hosts, sync_hosts: true
+    ENV['LC_ALL'] = 'en_US.UTF-8'
+    ntp_client.vm.provision "setup_ntp", type: "shell", inline: setup_ntp_client
+  end
+
+end
+  
