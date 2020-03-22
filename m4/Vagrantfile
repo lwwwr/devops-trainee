@@ -1,0 +1,141 @@
+template = {
+  hostname: 'ubuntu-host',
+  box: 'ubuntu/bionic64'
+}
+
+# 1. Linux utilities (Basic)
+# Идет конфигурирование доступа с учетом требований безопасности и по ключу для вагрант юзика
+# коннект от тачки к тачке через ssh vagrant@vm# -i .ssh/new_id_rsa
+install = <<~SCRIPT
+ssh-keygen -t rsa -b 4096 -q -N 'pswpr1' -f ~/.ssh/new_id_rsa
+sudo bash -c 'cat <<EOF >> /etc/ssh/sshd_config
+Protocol 2
+ClientAliveInterval 360
+ClientAliveCountMax 0
+PermitEmptyPasswords no
+AllowUsers vagrant
+PermitRootLogin no
+AuthorizedKeysFile .ssh/authorized_keys
+Port 2025
+AddressFamily inet
+UsePAM no
+PasswordAuthentication no
+PubkeyAuthentication yes
+ChallengeResponseAuthentication no
+EOF'
+sudo ufw allow 2025/tcp
+sudo systemctl reload sshd
+SCRIPT
+
+# Сохранить с помощью scp настройки и конфиги в архив с помощью tar на хост
+# С машины вм1 заходим на вм2 (поскольку PermitEmptyPasswords no и ключ у нас с пассфразой, нужно руками вводить пассфразу)
+# Предварительно сетаем конфиг ~/.ssh/config на вм1
+# Host vm2
+# Hostname 172.30.0.2
+# User vagrant
+# PubKeyAuthentication yes
+# IdentityFile ~/.ssh/new_id_rsa
+# засетали
+# далее ssh vagrant@vm2 tar -czvf sshd_config_vm2.tar.gz /etc/ssh/sshd_config
+# потом scp vm2:/etc/ssh/sshd_config sshd_config_vm2
+# для остальных машин после провижина такая же команда
+
+# Создать 3 директории: current, new, old
+# В директорию old файлы из любой существующей директории сохраняя изначальные атрибуты(права, владелец и т.д.
+# В директорию current скопировать файлы из любой существующей директории создавая атрибуты директории current
+# В директорию new скопировать скопировать файлы из любой существующей директории с изменением атрибутов на аттрибуты директоии new (на 1 год назад)
+# Создать tar архив из этих 3-х директорий
+# Найти и сохранить список всех файлов в /bin/, которые написаны на Bash/Shell (в одну строку выполнение) в файл bin.txt
+# Скачать iso файл (Debian net-inst) с интернета в текущую директорию, с учётом нестабильного соединения, используя wget
+# Скачать репозитарий Git проекта (любого) используя cur
+
+work_with_dirs_and_files = <<~SCRIPT
+mkdir old new current
+sudo cp -p /etc/ssh/sshd_config ./old/
+sudo cp --no_preserve=all /etc/ssh/sshd_config ./current/
+sudo cp -p sshd_config_vm1 ./new/; find ./new/ -exec touch -am --date="$(date -d '-1 year' +'%Y-%m-%d')" {} +
+tar -czvf archive.tar.gz old new current
+grep -r '/bin/bash' /bin > bin.txt
+wget --tries=50 --connect-timeout=3 --read-timeout=1000 --waitretry=5 https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-10.3.0-amd64-netinst.iso
+curl https://codeload.github.com/lwwwr/sample-rails-hw/zip/master --output sample.zip
+SCRIPT
+
+
+# 2. Network utilities & troubleshootin
+# Сохранить текущий LA (Load Average) в файл la.txt
+# Сохранить текущий загрузку дисков (размеры) в файл hdd.txt
+# Сохранить текущий список процессов пользователей в файл pl.txt
+# Сохранить информацию о SWAP-е в файл swap.txt
+# Сохранить список всех SATA устройств в файл dev.txt
+# Сохранить информацию у процессоре в cpu.txt
+# Сохранить информацию о любом процессе в файл <id_процесса>.txt
+# Сохранить информацию о партициях в файл parts.txt
+# Проверить реальное соединение по порту (например 80 на любом сервере)
+# Получить список всех открытых портов на удалённом сервере и сохранить в файл ports.txt
+# Получить список всех TCP портов на машине и сохранить в файл tcp.txt
+# Получить список всех UDP портов на машине и сохранить в файл udp.txt
+# Получить список всех UNIX Socket портов на машине и сохранить в файл usocket.txt
+# Получить таблицу маршрутизации на машине и сохранить в файл net.txt
+# Получить статистику для каждого протокола на машине и сохранить в файл nstat.txt
+# Изменить имя машины
+# Получить список DNS и сохранить в файл dns.txt
+
+t2 = <<~SCRIPT
+cat /proc/loadavg > la.txt
+df -h > hdd.txt
+ps -ejH > pl.txt
+swapon -s > swap.txt
+ls -l /dev/disk/by-id/ > dev.txt
+cat /proc/cpuinfo > cpu.txt
+xargs -0 -L 1 echo < /proc/32486/environ > 32486.txt
+cat /proc/partitions > parts.txt
+nc -vz localhost 80
+nc -vz localhost 1-45667 2>&1 | grep succeeded > ports.txt
+ss -t -a > tcp.txt
+ss -u -a > udp.txt
+ss -x -a  > usocket.txt
+route > net.txt
+ip route list > nstat.txt
+sudo hostname btq
+nmcli device show enp2s0 | grep IP4.DNS > dns.txt
+SCRIPT
+
+
+Vagrant.configure("2") do |config|
+  config.vm.define "vm1" do |vm1|
+    vm1.vm.box = template[:box]
+    vm1.vm.hostname = 'vm1'
+    vm1.vm.network "private_network", ip: "172.30.0.1", virtualbox__intnet: true
+    ENV['LC_ALL']="en_US.UTF-8"
+    vm1.vm.provision :hosts, sync_hosts: true
+    vm1.vm.provision :shell, inline: install
+    # ubuntu home dir
+    vm1.vm.provision "file", source: "/home/artemlavruschik/.ssh/id_rsa.pub", destination: "my.pub"
+    vm1.vm.provision :shell, inline: "cat my.pub >> /home/vagrant/.ssh/authorized_keys"
+    vm1.vm.provision :shell, inline: work_with_dirs_and_files
+    vm1.vm.provision :shell, inline: t2
+  end
+
+  config.vm.define "vm2" do |vm2|
+    vm2.vm.box = template[:box]
+    vm2.vm.hostname = 'vm2'
+    vm2.vm.network "private_network", ip: "172.30.0.2", virtualbox__intnet: true
+    ENV['LC_ALL']="en_US.UTF-8"
+    vm2.vm.provision :hosts, sync_hosts: true
+    vm2.vm.provision :shell, inline: install
+    vm2.vm.provision "file", source: "/home/artemlavruschik/.ssh/id_rsa.pub", destination: "my.pub"
+    vm2.vm.provision :shell, inline: "cat my.pub >> /home/vagrant/.ssh/authorized_keys"
+  end
+
+  config.vm.define "vm3" do |vm3|
+    vm3.vm.box = template[:box]
+    vm3.vm.hostname = 'vm3'
+    vm3.vm.network "private_network", ip: "172.30.0.2", virtualbox__intnet: true
+    ENV['LC_ALL']="en_US.UTF-8"
+    vm3.vm.provision :hosts, sync_hosts: true
+    vm3.vm.provision :shell, inline: install
+    vm3.vm.provision "file", source: "/home/artemlavruschik/.ssh/id_rsa.pub", destination: "my.pub"
+    vm3.vm.provision :shell, inline: "cat my.pub >> /home/vagrant/.ssh/authorized_keys"
+  end
+
+end
