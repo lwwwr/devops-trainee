@@ -80,6 +80,7 @@ SCRIPT
 # Изменить имя машины
 # Получить список DNS и сохранить в файл dns.txt
 
+
 t2 = <<~SCRIPT
 cat /proc/loadavg > la.txt
 df -h > hdd.txt
@@ -100,6 +101,29 @@ sudo hostname btq
 nmcli device show enp2s0 | grep IP4.DNS > dns.txt
 SCRIPT
 
+# Extract archive file in folder unsorted
+# Three different file types was placed in directory  ./sorted
+# Directory contains video files .mp4, audio files .mp3 and books .pdf, .chm, .djvu
+
+# So your tasks are:
+#     1. In directory task1 create 3 directories. video, audio, books.
+#     2. Move audio files to audio directory, video files to video and books files to books.
+#     3. In the video directory create 3 subdirectories 80x, 200x, latest
+#     4. From video driectory copy files that contain date from 1980 to 1989 to directory 80x, from 2000 to 2009 to 200x, from 2014 to 2016 to latest
+#     5. After files are moved to correct directories create archive task.completed.tar.gz with all files. 
+# Hint: use globbing pattern with wildcard
+
+# mkdir video audio books
+# mv *.mp3 ./audio
+# mv *.mp4 ./video
+# mv *.{chm,pdf,djvu} ./books/
+# mkdir ./video/80x ./video/200x ./video/latest
+# find ./video/ -type f -iname '*198[0-9]*' -exec mv '{}' ./video/80x/ \;
+# find ./video/ -type f -iname '*200[0-9]*' -exec mv '{}' ./video/200x/ \;
+# find ./video/ -type f -iname '*201[0-4]*' -exec mv '{}' ./video/latest/ \; #wrong date 
+# find ./video/ -type f -iname '*201[4-6]*' -exec mv '{}' ./video/latest/ \; #right date
+# cd ../
+# tar -czvf task.completed.tar.gz extra-task-sorting/
 
 Vagrant.configure("2") do |config|
   config.vm.define "vm1" do |vm1|
