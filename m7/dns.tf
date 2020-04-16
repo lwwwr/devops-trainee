@@ -30,20 +30,11 @@ resource "aws_route53_record" "alavruschik_r53_bastion" {
   records = [aws_instance.alavruschik_bastion.public_ip]
 }
 
-resource "aws_route53_record" "alavruschik_r53_nginx" {
+resource "aws_route53_record" "alavruschik_r53_backend_alb" {
   zone_id = aws_route53_zone.alavruschik_r53_main.zone_id
-  name    = "nginx"
-  type    = "A"
-  ttl     = "300"
-
-  records = [aws_instance.alavruschik_nginx_ec2.public_ip]
-}
-
-resource "aws_route53_record" "alavruschik_r53_alb" {
-  zone_id = aws_route53_zone.alavruschik_r53_main.zone_id
-  name    = "alb"
+  name    = "backend-alb"
   type    = "CNAME"
   ttl     = "300"
 
-  records = [aws_alb.alavruschik_alb.dns_name]
+  records = [aws_alb.alavruschik_backend_alb.dns_name]
 }

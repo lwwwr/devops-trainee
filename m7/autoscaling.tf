@@ -1,6 +1,6 @@
-resource "aws_autoscaling_group" "alavruschik_agents" {
+resource "aws_autoscaling_group" "alavruschik_backend_agents" {
   availability_zones = var.availability_zones
-  name = "alavruschik_agents"
+  name = "alavruschik_backend_agents"
   max_size = "3"
   min_size = "2"
   health_check_grace_period = 60
@@ -8,7 +8,7 @@ resource "aws_autoscaling_group" "alavruschik_agents" {
   desired_capacity = 2
   vpc_zone_identifier = aws_subnet.alavruschik_private_backend_subnet.*.id
   force_delete = true
-  target_group_arns = [aws_alb_target_group.alavruschik_alb_target_group.arn]
+  target_group_arns = [aws_alb_target_group.alavruschik_backend_alb_target_group.arn]
   launch_configuration = aws_launch_configuration.alavruschik_launch_configuration.name
 
   tag {
@@ -18,21 +18,26 @@ resource "aws_autoscaling_group" "alavruschik_agents" {
   }
 }
 
-resource "aws_autoscaling_policy" "alavruschik_agents_scale_up" {
-  name = "alavruschik_agents_scale_up"
+resource "aws_autoscaling_attachment" "alavruschik_backend_agents_attachment" {
+  autoscaling_group_name = aws_autoscaling_group.alavruschik_backend_agents.id
+  alb_target_group_arn   = aws_alb_target_group.alavruschik_backend_alb_target_group.arn
+}
+
+resource "aws_autoscaling_policy" "alavruschik_backend_agents_scale_up" {
+  name = "alavruschik_backend_agents_scale_up"
   scaling_adjustment = 1
   adjustment_type = "ChangeInCapacity"
   cooldown = 60
-  autoscaling_group_name = aws_autoscaling_group.alavruschik_agents.name
+  autoscaling_group_name = aws_autoscaling_group.alavruschik_backend_agents.name
   policy_type = "SimpleScaling"
 }
 
-resource "aws_autoscaling_policy" "alavruschik_agents_scale_down" {
-  name = "alavruschik_agents_scale_down"
+resource "aws_autoscaling_policy" "alavruschik_backend_agents_scale_down" {
+  name = "alavruschik_backend_agents_scale_down"
   scaling_adjustment = -1
   adjustment_type = "ChangeInCapacity"
   cooldown = 60
-  autoscaling_group_name = aws_autoscaling_group.alavruschik_agents.name
+  autoscaling_group_name = aws_autoscaling_group.alavruschik_backend_agents.name
 }
 
 resource "aws_cloudwatch_metric_alarm" "alavruschik_memory_high" {
@@ -46,11 +51,11 @@ resource "aws_cloudwatch_metric_alarm" "alavruschik_memory_high" {
   threshold = "8"
   alarm_description = "This metric monitors ec2 cpu for high utilization on agent hosts"
   alarm_actions = [
-    aws_autoscaling_policy.alavruschik_agents_scale_up.arn,
+    aws_autoscaling_policy.alavruschik_backend_agents_scale_up.arn,
     aws_sns_topic.alavruschik_agent_sns.arn
   ]
   dimensions = {
-    AutoScalingGroupName = aws_autoscaling_group.alavruschik_agents.name
+    AutoScalingGroupName = aws_autoscaling_group.alavruschik_backend_agents.name
   }
 }
 
@@ -65,10 +70,10 @@ resource "aws_cloudwatch_metric_alarm" "alavruschik_memory_low" {
   threshold = "6"
   alarm_description = "This metric monitors ec2 cpu for low utilization on agent hosts"
   alarm_actions = [
-    aws_autoscaling_policy.alavruschik_agents_scale_down.arn,
+    aws_autoscaling_policy.alavruschik_backend_agents_scale_down.arn,
     aws_sns_topic.alavruschik_agent_sns.arn
   ]
   dimensions = {
-    AutoScalingGroupName = aws_autoscaling_group.alavruschik_agents.name
+    AutoScalingGroupName = aws_autoscaling_group.alavruschik_backend_agents.name
   }
 }
