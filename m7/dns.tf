@@ -38,3 +38,21 @@ resource "aws_route53_record" "alavruschik_r53_backend_alb" {
 
   records = [aws_alb.alavruschik_backend_alb.dns_name]
 }
+
+resource "aws_route53_record" "alavruschik_r53_frontend_alb" {
+  zone_id = aws_route53_zone.alavruschik_r53_main.zone_id
+  name    = "frontend-alb"
+  type    = "CNAME"
+  ttl     = "300"
+
+  records = [aws_alb.alavruschik_frontend_alb.dns_name]
+}
+
+resource "aws_route53_record" "alavruschik_r53_rds" {
+  zone_id = aws_route53_zone.alavruschik_r53_main.zone_id
+  name    = "db"
+  type    = "CNAME"
+  ttl     = "300"
+
+  records = [aws_db_instance.alavruschik_rds.address ]
+}

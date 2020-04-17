@@ -11,7 +11,8 @@ resource "aws_sns_topic" "alavruschik_agent_sns" {
 
 resource "aws_autoscaling_notification" "alavruschik_agent_notification" {
   group_names = [
-    aws_autoscaling_group.alavruschik_backend_agents.name
+    aws_autoscaling_group.alavruschik_backend_agents.name,
+    aws_autoscaling_group.alavruschik_frontend_agents.name
   ]
 
   notifications = [

@@ -9,7 +9,7 @@ resource "aws_autoscaling_group" "alavruschik_backend_agents" {
   vpc_zone_identifier = aws_subnet.alavruschik_private_backend_subnet.*.id
   force_delete = true
   target_group_arns = [aws_alb_target_group.alavruschik_backend_alb_target_group.arn]
-  launch_configuration = aws_launch_configuration.alavruschik_launch_configuration.name
+  launch_configuration = aws_launch_configuration.alavruschik_backend_launch_configuration.name
 
   tag {
     key                 = "Name"
@@ -21,6 +21,31 @@ resource "aws_autoscaling_group" "alavruschik_backend_agents" {
 resource "aws_autoscaling_attachment" "alavruschik_backend_agents_attachment" {
   autoscaling_group_name = aws_autoscaling_group.alavruschik_backend_agents.id
   alb_target_group_arn   = aws_alb_target_group.alavruschik_backend_alb_target_group.arn
+}
+
+resource "aws_autoscaling_group" "alavruschik_frontend_agents" {
+  availability_zones = var.availability_zones
+  name = "alavruschik_frontend_agents"
+  max_size = "3"
+  min_size = "2"
+  health_check_grace_period = 60
+  health_check_type = "EC2"
+  desired_capacity = 2
+  vpc_zone_identifier = aws_subnet.alavruschik_public_subnet.*.id
+  force_delete = true
+  target_group_arns = [aws_alb_target_group.alavruschik_frontend_alb_target_group.arn]
+  launch_configuration = aws_launch_configuration.alavruschik_frontend_launch_configuration.name
+
+  tag {
+    key                 = "Name"
+    propagate_at_launch = true
+    value               = "alavruschik_private_frontend_ec2-default"
+  }
+}
+
+resource "aws_autoscaling_attachment" "alavruschik_frontend_agents_attachment" {
+  autoscaling_group_name = aws_autoscaling_group.alavruschik_frontend_agents.id
+  alb_target_group_arn   = aws_alb_target_group.alavruschik_frontend_alb_target_group.arn
 }
 
 resource "aws_autoscaling_policy" "alavruschik_backend_agents_scale_up" {
