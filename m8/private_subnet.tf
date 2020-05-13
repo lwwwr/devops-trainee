@@ -1,4 +1,4 @@
-resource "aws_subnet" "alavruschik_private_backend_subnet" {
+resource "aws_subnet" "alavruschik_private_subnet" {
   count = length(var.private_backend_subnet_cidr)
   vpc_id = aws_vpc.alavruschik_vpc_main.id
   cidr_block = element(var.private_backend_subnet_cidr, count.index)
@@ -6,6 +6,6 @@ resource "aws_subnet" "alavruschik_private_backend_subnet" {
   tags = merge(
     var.tags,
     map(
-    "Name", "alavruschik_private_backend_subnet-${count.index + 1}"
+    "Name", "alavruschik_private_subnet-${count.index + 1}"
   ))
 }
