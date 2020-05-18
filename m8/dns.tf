@@ -75,6 +75,15 @@ resource "aws_route53_record" "alavruschik_r53_sonar-qube_alb" {
   records = [aws_alb.alavruschik_sonar-qube_alb.dns_name]
 }
 
+resource "aws_route53_record" "alavruschik_r53_rds" {
+  zone_id = aws_route53_zone.alavruschik_r53_main.zone_id
+  name    = "db"
+  type    = "CNAME"
+  ttl     = "300"
+
+  records = [aws_db_instance.alavruschik_rds.address ]
+}
+
 # resource "aws_route53_record" "alavruschik_r53_sonar-cube" {
 #   zone_id = aws_route53_zone.alavruschik_r53_main.zone_id
 #   name    = "sonar-cube"
