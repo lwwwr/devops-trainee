@@ -66,7 +66,12 @@ resource "aws_security_group" "alavruschik_sg_incoming" {
     protocol = "udp"
     cidr_blocks = [var.global_cidr]
   }
-
+  ingress {
+    from_port = 5432
+    to_port = 5432
+    protocol = "tcp"
+    cidr_blocks = [var.global_cidr]
+  }
   tags = merge(
     var.tags,
     map(

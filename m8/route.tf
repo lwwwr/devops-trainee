@@ -31,6 +31,12 @@ resource "aws_route_table_association" "alavruschik_route_assosiation_public" {
   route_table_id = aws_route_table.alavruschik_route_public.id
 }
 
+resource "aws_route_table_association" "alavruschik_route_assosiation_public_db" {
+  count = length(var.public_subnet_cidr)
+  subnet_id = element(aws_subnet.alavruschik_private_db_subnet.*.id, count.index)
+  route_table_id = aws_route_table.alavruschik_route_public.id
+}
+
 resource "aws_route_table_association" "alavruschik_route_assosiation_private_backend" {
   count = length(var.private_backend_subnet_cidr)
   subnet_id = element(aws_subnet.alavruschik_private_subnet.*.id, count.index)

@@ -12,7 +12,8 @@ resource "aws_route53_record" "alavruschik_r53_parent_ns" {
   name    = "alavr.test.coherentprojects.net"
   type    = "NS"
   ttl     = "30"
-
+  allow_overwrite = true
+  
   records = [
     aws_route53_zone.alavruschik_r53_main.name_servers.0,
     aws_route53_zone.alavruschik_r53_main.name_servers.1,

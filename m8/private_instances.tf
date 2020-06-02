@@ -5,7 +5,7 @@ resource "aws_instance" "alavruschik_private_sonar-qube_ec2" {
   key_name = var.pem_key
   subnet_id = aws_subnet.alavruschik_private_subnet.*.id[0]
   vpc_security_group_ids = [aws_security_group.alavruschik_sg_vpc_traffic.id]  
-  user_data = file("./scripts/sonar-cube.sh")
+  # user_data = file("./scripts/sonar-cube.sh")
   tags = merge(
     var.tags,
     map(
@@ -24,7 +24,7 @@ resource "aws_instance" "alavruschik_private_nexus_ec2" {
   key_name = var.pem_key
   subnet_id = aws_subnet.alavruschik_private_subnet.*.id[1]
   vpc_security_group_ids = [aws_security_group.alavruschik_sg_vpc_traffic.id] 
-  user_data = file("./scripts/nexus.sh")
+  # user_data = file("./scripts/nexus.sh")
   tags = merge(
     var.tags,
     map(
